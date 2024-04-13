@@ -93,7 +93,6 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Listeners
             // function the listener is for is targeting. This is the account that will be used
             // to read the trigger blob.
             var targetBlobClient = _dataBlobServiceClient;
-            var targetQueueClient = _dataQueueServiceClient;
 
             BlobTriggerQueueWriter blobTriggerQueueWriter = await _blobTriggerQueueWriterFactory.CreateAsync(cancellationToken).ConfigureAwait(false);
 
@@ -128,10 +127,14 @@ namespace Microsoft.Azure.WebJobs.Extensions.Storage.Blobs.Listeners
                     _drainModeManager));
             var queueListener = new BlobListener(sharedBlobQueueListener, _container, _input, _loggerFactory);
 
-            // the client to use for the poison queue
-            // by default this should target the same storage account
-            // as the blob container we're monitoring
-            var poisonQueueClient = targetQueueClient;
+            // If the blob and queue service URIs are the same, the trigger has
+            // not specified a queue service. This can occur if the connection
+            // uses a `serviceUri` property pointing to the blob service.
+            bool isDataQueueServiceClientValid = !_dataBlobServiceClient.Uri.Equals(_dataQueueServiceClient.Uri);
+            // The client to use for the poison queue
+            // If trigger connection defined the queue service, we use that.
+            // Otherwise we default to the host queue.
+            var poisonQueueClient = isDataQueueServiceClientValid ? _dataQueueServiceClient : _hostQueueServiceClient;
 
             // Register our function with the shared blob queue listener
             RegisterWithSharedBlobQueueListenerAsync(sharedBlobQueueListener, targetBlobClient, poisonQueueClient);
